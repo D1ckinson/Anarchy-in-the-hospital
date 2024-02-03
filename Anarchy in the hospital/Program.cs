@@ -18,8 +18,8 @@ namespace Anarchy_in_the_hospital
             for (int i = 0; i < cardsQuantity; i++)
                 patientCards.Add(cardFabrik.CreateCard());
 
-            ActionBuilder actionBuilder = new ActionBuilder(patientCards);
-            Menu menu = new Menu(actionBuilder.GiveActions());
+            ActionBuilder actionBuilder = new ActionBuilder(patientCards, cardFabrik.GiveDiseases());
+            MainMenu menu = new MainMenu(actionBuilder.GiveActions());
 
             menu.Work();
         }
@@ -28,12 +28,14 @@ namespace Anarchy_in_the_hospital
     class ActionBuilder
     {
         private List<PatientCard> _patientCards;
+        private List<string> _diseases;
 
-        public ActionBuilder(List<PatientCard> patientCards)
+        public ActionBuilder(List<PatientCard> patientCards, List<string> diseases)
         {
             _patientCards = patientCards;
+            _diseases = diseases;
 
-            DrawCards();
+            DrawCards(_patientCards);
         }
 
         public Dictionary<string, Action> GiveActions() =>
@@ -44,42 +46,41 @@ namespace Anarchy_in_the_hospital
                 { "Отсортировать по возрасту", SortByAge }
             };
 
-        private void SortByName()
-        {
-            _patientCards = _patientCards.OrderBy(card => card.Name).ToList();
+        private void SortByName() =>
+            DrawCards(_patientCards.OrderBy(card => card.Name));
 
-            DrawCards();
-        }
+        private void SortByAge() =>
+            DrawCards(_patientCards.OrderBy(card => card.Age));
 
         private void SortByDisease()
         {
-            _patientCards = _patientCards.OrderBy(card => card.Disease).ToList();
+            string disease = new DiseaseMenu(_diseases).Work();
 
-            DrawCards();
+            DrawCards(_patientCards.FindAll(card => card.Disease == disease));
+
+            Console.WriteLine("Нажмите любую клавишу...");
+            Console.ReadKey(true);
+
+            DrawCards(_patientCards);
         }
 
-        private void SortByAge()
-        {
-            _patientCards = _patientCards.OrderBy(card => card.Age).ToList();
-
-            DrawCards();
-        }
-
-        private void DrawCards()
+        private void DrawCards(IEnumerable<PatientCard> cards)
         {
             int indent = 3;
             int spaceLineSize = 100;
+            int cursorPositionY = GiveActions().Count + indent;
 
             char space = ' ';
 
-            Console.CursorTop = GiveActions().Count + indent;
+            Console.CursorTop = cursorPositionY;
 
-            foreach (PatientCard card in _patientCards)
-            {
-                Console.Write(new string(space, spaceLineSize));
-                Console.CursorLeft = 0;
+            for (int i = 0; i < _patientCards.Count; i++)
+                Console.WriteLine(new string(space, spaceLineSize));
+
+            Console.SetCursorPosition(0, cursorPositionY);
+
+            foreach (PatientCard card in cards)
                 Console.WriteLine($"{card.Name}, возраст - {card.Age}, болезнь - {card.Disease}");
-            }
         }
     }
 
@@ -112,7 +113,7 @@ namespace Anarchy_in_the_hospital
         {
             FillNames();
             FillSurnames();
-            FillDiseases();
+            _diseases = GiveDiseases();
         }
 
         public PatientCard CreateCard()
@@ -127,6 +128,16 @@ namespace Anarchy_in_the_hospital
 
             return new PatientCard(fullName, age, disease);
         }
+
+        public List<string> GiveDiseases() =>
+            new List<string>
+            {
+                "рак",
+                "простуда",
+                "оспа",
+                "геморрой",
+                "пневмоноультрамикроскопиксиликоволканокониоз"
+            };
 
         private void FillNames() =>
             _names = new List<string>
@@ -150,19 +161,48 @@ namespace Anarchy_in_the_hospital
                 "Киррилов",
                 "Мамонов"
             };
-
-        private void FillDiseases() =>
-            _diseases = new List<string>
-            {
-                "рак",
-                "простуда",
-                "оспа",
-                "геморрой",
-                "пневмоноультрамикроскопиксиликоволканокониоз"
-            };
     }
 
-    class Menu
+    class MainMenu : Menu
+    {
+        private Dictionary<string, Action> _actions = new Dictionary<string, Action>();
+
+        public MainMenu(Dictionary<string, Action> actions)
+        {
+            _actions = actions;
+            _actions.Add("Выход", Exit);
+            _items = _actions.Keys.ToArray();
+        }
+
+        protected override void ConfirmActionSelection()
+        {
+            base.ConfirmActionSelection();
+
+            _actions[_items[_itemIndex]].Invoke();
+        }
+    }
+
+    class DiseaseMenu : Menu
+    {
+        public DiseaseMenu(IEnumerable<string> diseases) =>
+            _items = diseases.ToArray();
+
+        public new string Work()
+        {
+            base.Work();
+
+            return _items[_itemIndex];
+        }
+
+        protected override void ConfirmActionSelection()
+        {
+            base.ConfirmActionSelection();
+
+            Exit();
+        }
+    }
+
+    abstract class Menu
     {
         private const ConsoleKey MoveSelectionUp = ConsoleKey.UpArrow;
         private const ConsoleKey MoveSelectionDown = ConsoleKey.DownArrow;
@@ -171,18 +211,10 @@ namespace Anarchy_in_the_hospital
         private ConsoleColor _backgroundColor = ConsoleColor.White;
         private ConsoleColor _foregroundColor = ConsoleColor.Black;
 
-        private int _itemIndex = 0;
+        protected string[] _items;
+        protected int _itemIndex = 0;
+
         private bool _isRunning;
-        private string[] _items;
-
-        private Dictionary<string, Action> _actions = new Dictionary<string, Action>();
-
-        public Menu(Dictionary<string, Action> actions)
-        {
-            _actions = actions;
-            _actions.Add("Выход", Exit);
-            _items = _actions.Keys.ToArray();
-        }
 
         public void Work()
         {
@@ -195,6 +227,12 @@ namespace Anarchy_in_the_hospital
                 ReadKey();
             }
         }
+
+        protected virtual void ConfirmActionSelection() =>
+            EraseText();
+
+        protected void Exit() =>
+            _isRunning = false;
 
         private void SetItemIndex(int index)
         {
@@ -222,7 +260,7 @@ namespace Anarchy_in_the_hospital
                     break;
 
                 case ConfirmSelection:
-                    _actions[_items[_itemIndex]].Invoke();
+                    ConfirmActionSelection();
                     break;
             }
         }
@@ -248,7 +286,15 @@ namespace Anarchy_in_the_hospital
             Console.ResetColor();
         }
 
-        private void Exit() =>
-            _isRunning = false;
+        private void EraseText()
+        {
+            int spaceLineSize = 60;
+            char space = ' ';
+
+            Console.SetCursorPosition(0, 0);
+
+            for (int i = 0; i < _items.Length; i++)
+                Console.WriteLine(new string(space, spaceLineSize));
+        }
     }
 }
