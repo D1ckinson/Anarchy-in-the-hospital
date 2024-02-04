@@ -56,7 +56,7 @@ namespace Anarchy_in_the_hospital
         {
             string disease = new DiseaseMenu(_diseases).Work();
 
-            DrawCards(_patientCards.FindAll(card => card.Disease == disease));
+            DrawCards(_patientCards.Where(card => card.Disease == disease));
 
             Console.WriteLine("Нажмите любую клавишу...");
             Console.ReadKey(true);
