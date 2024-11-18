@@ -87,40 +87,25 @@ namespace Anarchy_in_the_hospital
 
         private List<Patient> SortByDisease()
         {
-            if (TryChoseDisease(out string disease) == false)
-                return _patients;
-
-            return _patients.Where(card => card.Disease == disease).ToList();
-        }
-
-        private bool TryChoseDisease(out string disease)
-        {
             ShowDiseases();
-            int index = UserUtils.ReadInt("Введите номер заболевания:") - 1;
+            string disease = UserUtils.ReadString("Напишите название болезни:").ToLower();
 
-            if (UserUtils.IsIndexInRange(index, _diseases.Count - 1) == false)
+            IEnumerable<Patient> patients = _patients.Where(patient => patient.Disease.ToLower() == disease);
+
+            if (patients.Count() == 0)
             {
-                disease = null;
-                Console.WriteLine("болезни под таким номером нет");
+                Console.WriteLine("Пациентов с такой болезнью нет");
 
-                return false;
+                return _patients;
             }
 
-            disease = _diseases[index];
-
-            return true;
+            return patients.ToList();
         }
 
         private void ShowDiseases()
         {
-            Console.WriteLine();
-
-            for (int i = 0; i < _diseases.Count; i++)
-            {
-                int diseaseNumber = i + 1;
-                Console.WriteLine($"{diseaseNumber} - {_diseases[i]}");
-            }
-
+            Console.WriteLine("\nБолезни пациентов:");
+            _diseases.ForEach(disease => Console.WriteLine(disease));
             Console.WriteLine();
         }
     }
