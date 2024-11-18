@@ -8,139 +8,184 @@ namespace Anarchy_in_the_hospital
     {
         static void Main()
         {
-            Console.CursorVisible = false;
+            HospitalFactory hospitalFactory = new HospitalFactory();
+            Hospital hospital = hospitalFactory.Create();
 
-            int cardsQuantity = 10;
-
-            PatientCardFabrik cardFabrik = new PatientCardFabrik();
-            List<PatientCard> patientCards = new List<PatientCard>();
-
-            for (int i = 0; i < cardsQuantity; i++)
-                patientCards.Add(cardFabrik.CreateCard());
-
-            ActionBuilder actionBuilder = new ActionBuilder(patientCards, cardFabrik.GiveDiseases());
-            MainMenu menu = new MainMenu(actionBuilder.GiveActions());
-
-            menu.Work();
+            hospital.Work();
         }
     }
 
-    class ActionBuilder
+    class HospitalFactory
     {
-        private List<PatientCard> _patientCards;
+        private PatientFactory _patientFactory = new PatientFactory();
+
+        public Hospital Create() =>
+            new Hospital(_patientFactory.Create(), _patientFactory.GetDiseases());
+    }
+
+    class Hospital
+    {
+        private List<Patient> _patients;
         private List<string> _diseases;
 
-        public ActionBuilder(List<PatientCard> patientCards, List<string> diseases)
+        public Hospital(List<Patient> patients, List<string> diseases)
         {
-            _patientCards = patientCards;
+            _patients = patients;
             _diseases = diseases;
-
-            DrawCards(_patientCards);
         }
 
-        public Dictionary<string, Action> GiveActions() =>
-            new Dictionary<string, Action>
+        public void Work()
+        {
+            const string SortByNameCommand = "1";
+            const string SortByAgeCommand = "2";
+            const string SortByDiseaseCommand = "3";
+            const string ExitCommand = "4";
+
+            bool isWork = true;
+            List<Patient> patients = _patients.ToList();
+
+            while (isWork)
             {
-                { "Отсортировать по имени", SortByName },
-                { "Отсортировать по болезни", SortByDisease },
-                { "Отсортировать по возрасту", SortByAge }
-            };
+                ShowPatientsInfo(patients);
 
-        private void SortByName() =>
-            DrawCards(_patientCards.OrderBy(card => card.Name));
+                Console.WriteLine($"\n" +
+                    $"{SortByNameCommand} - отсортировать больных по имени\n" +
+                    $"{SortByAgeCommand} - отсортировать больных по возрасту\n" +
+                    $"{SortByDiseaseCommand} - отсортировать больных по болезни\n" +
+                    $"{ExitCommand} - выйти\n");
 
-        private void SortByAge() =>
-            DrawCards(_patientCards.OrderBy(card => card.Age));
+                switch (UserUtils.ReadString("Введите команду:"))
+                {
+                    case SortByNameCommand:
+                        patients = _patients.OrderBy(patient => patient.Name).ToList();
+                        break;
 
-        private void SortByDisease()
-        {
-            string disease = new DiseaseMenu(_diseases).Work();
+                    case SortByAgeCommand:
+                        patients = _patients.OrderBy(patient => patient.Age).ToList();
+                        break;
 
-            DrawCards(_patientCards.Where(card => card.Disease == disease));
+                    case SortByDiseaseCommand:
+                        patients = SortByDisease();
+                        break;
 
-            Console.WriteLine("Нажмите любую клавишу...");
-            Console.ReadKey(true);
+                    case ExitCommand:
+                        isWork = false;
+                        break;
 
-            DrawCards(_patientCards);
+                    default:
+                        Console.WriteLine("Такой команды нет");
+                        break;
+                }
+            }
         }
 
-        private void DrawCards(IEnumerable<PatientCard> cards)
+        private void ShowPatientsInfo(List<Patient> patients)
         {
-            int indent = 3;
-            int spaceLineSize = 100;
-            int cursorPositionY = GiveActions().Count + indent;
+            Console.WriteLine("\nПациенты:");
+            patients.ForEach(patient => patient.ShowInfo());
+        }
 
-            char space = ' ';
+        private List<Patient> SortByDisease()
+        {
+            if (TryChoseDisease(out string disease) == false)
+                return _patients;
 
-            Console.CursorTop = cursorPositionY;
+            return _patients.Where(card => card.Disease == disease).ToList();
+        }
 
-            for (int i = 0; i < _patientCards.Count; i++)
-                Console.WriteLine(new string(space, spaceLineSize));
+        private bool TryChoseDisease(out string disease)
+        {
+            ShowDiseases();
+            int index = UserUtils.ReadInt("Введите номер заболевания:") - 1;
 
-            Console.SetCursorPosition(0, cursorPositionY);
+            if (UserUtils.IsIndexInRange(index, _diseases.Count - 1) == false)
+            {
+                disease = null;
+                Console.WriteLine("болезни под таким номером нет");
 
-            foreach (PatientCard card in cards)
-                Console.WriteLine($"{card.Name}, возраст - {card.Age}, болезнь - {card.Disease}");
+                return false;
+            }
+
+            disease = _diseases[index];
+
+            return true;
+        }
+
+        private void ShowDiseases()
+        {
+            Console.WriteLine();
+
+            for (int i = 0; i < _diseases.Count; i++)
+            {
+                int diseaseNumber = i + 1;
+                Console.WriteLine($"{diseaseNumber} - {_diseases[i]}");
+            }
+
+            Console.WriteLine();
         }
     }
 
-    class PatientCard
+    class Patient
     {
-        public PatientCard(string name, int age, string disease)
+        public Patient(string name, int age, string disease)
         {
             Name = name;
             Age = age;
             Disease = disease;
         }
 
-        public string Name { get; private set; }
-        public int Age { get; private set; }
-        public string Disease { get; private set; }
+        public string Name { get; }
+        public int Age { get; }
+        public string Disease { get; }
 
+        public void ShowInfo()
+        {
+            const int ShortOffset = -5;
+            const int LongOffset = -20;
+
+            Console.WriteLine($"{Name,LongOffset}Возраст: {Age,ShortOffset} Заболевание:{Disease}");
+        }
     }
 
-    class PatientCardFabrik
+    class PatientFactory
     {
-        private List<string> _names;
-        private List<string> _surnames;
-        private List<string> _diseases;
-
-        private int[] _ageStats = { 20, 60 };
-
-        private Random _random = new Random();
-
-        public PatientCardFabrik()
+        public List<Patient> Create()
         {
-            FillNames();
-            FillSurnames();
-            _diseases = GiveDiseases();
+            int patientsQuantity = 10;
+            int[] ageStats = { 20, 60 };
+            List<Patient> patients = new List<Patient>();
+
+            for (int i = 0; i < patientsQuantity; i++)
+            {
+                string fullName = GetFullName();
+                string disease = UserUtils.GenerateRandomValue(GetDiseases());
+                int age = UserUtils.GenerateStat(ageStats);
+
+                patients.Add(new Patient(fullName, age, disease));
+            }
+
+            return patients;
         }
 
-        public PatientCard CreateCard()
-        {
-            string name = _names[_random.Next(0, _names.Count)];
-            string surname = _surnames[_random.Next(_surnames.Count)];
-            string fullName = $"{name} {surname}";
-
-            string disease = _diseases[_random.Next(_diseases.Count)];
-
-            int age = _random.Next(_ageStats[0], _ageStats[1]);
-
-            return new PatientCard(fullName, age, disease);
-        }
-
-        public List<string> GiveDiseases() =>
+        public List<string> GetDiseases() =>
             new List<string>
             {
                 "рак",
                 "простуда",
                 "оспа",
-                "геморрой",
-                "пневмоноультрамикроскопиксиликоволканокониоз"
+                "геморрой"
             };
 
-        private void FillNames() =>
-            _names = new List<string>
+        private string GetFullName()
+        {
+            string name = UserUtils.GenerateRandomValue(GetNames());
+            string surname = UserUtils.GenerateRandomValue(GetSurnames());
+
+            return $"{name} {surname}";
+        }
+
+        private List<string> GetNames() =>
+            new List<string>
             {
                 "Геннадий",
                 "Дмитрий",
@@ -150,8 +195,8 @@ namespace Anarchy_in_the_hospital
                 "Михаил"
             };
 
-        private void FillSurnames() =>
-            _surnames = new List<string>
+        private List<string> GetSurnames() =>
+            new List<string>
             {
                 "Немичев",
                 "Величко",
@@ -163,138 +208,51 @@ namespace Anarchy_in_the_hospital
             };
     }
 
-    class MainMenu : Menu
+    static class UserUtils
     {
-        private Dictionary<string, Action> _actions = new Dictionary<string, Action>();
+        private static Random s_random = new Random();
 
-        public MainMenu(Dictionary<string, Action> actions)
+        public static string ReadString(string text)
         {
-            _actions = actions;
-            _actions.Add("Выход", Exit);
-            _items = _actions.Keys.ToArray();
+            Console.Write(text);
+
+            return Console.ReadLine();
         }
 
-        protected override void ConfirmActionSelection()
+        public static int ReadInt(string parameter)
         {
-            base.ConfirmActionSelection();
+            int number;
+            string input;
 
-            _actions[_items[_itemIndex]].Invoke();
-        }
-    }
-
-    class DiseaseMenu : Menu
-    {
-        public DiseaseMenu(IEnumerable<string> diseases) =>
-            _items = diseases.ToArray();
-
-        public new string Work()
-        {
-            base.Work();
-
-            return _items[_itemIndex];
-        }
-
-        protected override void ConfirmActionSelection()
-        {
-            base.ConfirmActionSelection();
-
-            Exit();
-        }
-    }
-
-    abstract class Menu
-    {
-        private const ConsoleKey MoveSelectionUp = ConsoleKey.UpArrow;
-        private const ConsoleKey MoveSelectionDown = ConsoleKey.DownArrow;
-        private const ConsoleKey ConfirmSelection = ConsoleKey.Enter;
-
-        private ConsoleColor _backgroundColor = ConsoleColor.White;
-        private ConsoleColor _foregroundColor = ConsoleColor.Black;
-
-        protected string[] _items;
-        protected int _itemIndex = 0;
-
-        private bool _isRunning;
-
-        public void Work()
-        {
-            _isRunning = true;
-
-            while (_isRunning)
+            do
             {
-                DrawItems();
-
-                ReadKey();
+                input = ReadString(parameter);
             }
+            while (int.TryParse(input, out number) == false);
+
+            return number;
         }
 
-        protected virtual void ConfirmActionSelection() =>
-            EraseText();
-
-        protected void Exit() =>
-            _isRunning = false;
-
-        private void SetItemIndex(int index)
+        public static T GenerateRandomValue<T>(IEnumerable<T> values)
         {
-            int lastIndex = _items.Length - 1;
+            int index = s_random.Next(values.Count());
 
-            if (index > lastIndex)
-                index = lastIndex;
-
-            if (index < 0)
-                index = 0;
-
-            _itemIndex = index;
+            return values.ElementAt(index);
         }
 
-        private void ReadKey()
+        public static int GenerateStat(int[] stats)
         {
-            switch (Console.ReadKey(true).Key)
+            int maxLength = 2;
+
+            if (stats.Length != maxLength)
             {
-                case MoveSelectionDown:
-                    SetItemIndex(_itemIndex + 1);
-                    break;
-
-                case MoveSelectionUp:
-                    SetItemIndex(_itemIndex - 1);
-                    break;
-
-                case ConfirmSelection:
-                    ConfirmActionSelection();
-                    break;
+                throw new ArgumentException("Массив stats должен содержать ровно 2 элемента.");
             }
+
+            return s_random.Next(stats[0], stats[1] + 1);
         }
 
-        private void DrawItems()
-        {
-            Console.SetCursorPosition(0, 0);
-
-            for (int i = 0; i < _items.Length; i++)
-                if (i == _itemIndex)
-                    WriteColoredText(_items[i]);
-                else
-                    Console.WriteLine(_items[i]);
-        }
-
-        private void WriteColoredText(string text)
-        {
-            Console.ForegroundColor = _foregroundColor;
-            Console.BackgroundColor = _backgroundColor;
-
-            Console.WriteLine(text);
-
-            Console.ResetColor();
-        }
-
-        private void EraseText()
-        {
-            int spaceLineSize = 60;
-            char space = ' ';
-
-            Console.SetCursorPosition(0, 0);
-
-            for (int i = 0; i < _items.Length; i++)
-                Console.WriteLine(new string(space, spaceLineSize));
-        }
+        public static bool IsIndexInRange(int index, int maxIndex) =>
+            index >= 0 && index <= maxIndex;
     }
 }
